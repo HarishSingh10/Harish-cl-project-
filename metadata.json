@@ -1,0 +1,6 @@
+{
+  "name": "Online Food Ordering System",
+  "description": "A sleek, minimalist full-stack application that allows users to browse restaurants, order food online, and track their orders with real-time status and an advanced admin dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
