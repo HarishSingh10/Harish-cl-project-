@@ -413,6 +413,30 @@ export class DB {
     return this.data.restaurants.find((r) => r.id === id);
   }
 
+  static addRestaurant(restaurant: Restaurant): Restaurant {
+    this.data.restaurants.push(restaurant);
+    this.save();
+    return restaurant;
+  }
+
+  static updateRestaurant(id: string, updates: Partial<Omit<Restaurant, "id">>): Restaurant | undefined {
+    const restaurant = this.getRestaurantById(id);
+    if (!restaurant) return undefined;
+    Object.assign(restaurant, updates);
+    this.save();
+    return restaurant;
+  }
+
+  static deleteRestaurant(id: string): boolean {
+    const index = this.data.restaurants.findIndex((r) => r.id === id);
+    if (index === -1) return false;
+    this.data.restaurants.splice(index, 1);
+    // Cascade delete associated recipes
+    this.data.menuItems = this.data.menuItems.filter((m) => m.restaurantId !== id);
+    this.save();
+    return true;
+  }
+
   // Menu Items
   static getMenuItems(): MenuItem[] {
     return this.data.menuItems;

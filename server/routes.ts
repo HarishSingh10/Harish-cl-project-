@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { DB, MenuItem, Order, OrderItem } from "./db";
+import { DB, MenuItem, Order, OrderItem, Restaurant } from "./db";
 import { authenticateToken, requireAdmin, AuthenticatedRequest, hashPassword, comparePassword, generateToken } from "./auth";
 
 const router = Router();
@@ -157,6 +157,63 @@ router.put("/auth/profile", authenticateToken as any, (req: AuthenticatedRequest
 // Get All Restaurants
 router.get("/restaurants", (req, res) => {
   res.json(DB.getRestaurants());
+});
+
+// Add Restaurant (Admin Only)
+router.post("/restaurants", (authenticateToken as any), (requireAdmin as any), (req: AuthenticatedRequest, res: Response) => {
+  const { name, cuisine, rating, deliveryTime, image, bannerImage, featured } = req.body;
+
+  if (!name || !cuisine) {
+    res.status(400).json({ error: "Eatery Name and Cuisine are required fields" });
+    return;
+  }
+
+  const newRestaurant = DB.addRestaurant({
+    id: "r_" + Math.random().toString(36).substring(2, 9),
+    name,
+    cuisine,
+    rating: Number(rating || 4.5),
+    deliveryTime: deliveryTime || "25-35 min",
+    image: image || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=400",
+    bannerImage: bannerImage || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200",
+    featured: Boolean(featured)
+  });
+
+  res.status(201).json(newRestaurant);
+});
+
+// Update Restaurant (Admin Only)
+router.put("/restaurants/:id", (authenticateToken as any), (requireAdmin as any), (req: AuthenticatedRequest, res: Response) => {
+  const id = req.params.id;
+  const { name, cuisine, rating, deliveryTime, image, bannerImage, featured } = req.body;
+
+  const updates: Partial<Omit<Restaurant, "id">> = {};
+  if (name !== undefined) updates.name = name;
+  if (cuisine !== undefined) updates.cuisine = cuisine;
+  if (rating !== undefined) updates.rating = Number(rating);
+  if (deliveryTime !== undefined) updates.deliveryTime = deliveryTime;
+  if (image !== undefined) updates.image = image;
+  if (bannerImage !== undefined) updates.bannerImage = bannerImage;
+  if (featured !== undefined) updates.featured = Boolean(featured);
+
+  const updatedRestaurant = DB.updateRestaurant(id, updates);
+  if (!updatedRestaurant) {
+    res.status(404).json({ error: "Eatery listing not found" });
+    return;
+  }
+
+  res.json(updatedRestaurant);
+});
+
+// Delete Restaurant (Admin Only)
+router.delete("/restaurants/:id", (authenticateToken as any), (requireAdmin as any), (req: AuthenticatedRequest, res: Response) => {
+  const id = req.params.id;
+  const deleted = DB.deleteRestaurant(id);
+  if (!deleted) {
+    res.status(404).json({ error: "Eatery listing not found" });
+    return;
+  }
+  res.json({ success: true, message: "Eatery decommissioned successfully" });
 });
 
 // Get Food Items for Specific Restaurant

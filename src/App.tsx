@@ -63,6 +63,17 @@ export default function App() {
   const [newItemImageUrl, setNewItemImageUrl] = useState("");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
+  // Admin Sub-Tab & Restaurant CRUD state
+  const [adminActiveTab, setAdminActiveTab] = useState<"analytics" | "restaurants" | "menu" | "orders">("analytics");
+  const [editingRestaurantId, setEditingRestaurantId] = useState<string | null>(null);
+  const [newRestaurantName, setNewRestaurantName] = useState("");
+  const [newRestaurantCuisine, setNewRestaurantCuisine] = useState("");
+  const [newRestaurantRating, setNewRestaurantRating] = useState("4.5");
+  const [newRestaurantDeliveryTime, setNewRestaurantDeliveryTime] = useState("20-30 min");
+  const [newRestaurantImage, setNewRestaurantImage] = useState("");
+  const [newRestaurantBannerImage, setNewRestaurantBannerImage] = useState("");
+  const [newRestaurantFeatured, setNewRestaurantFeatured] = useState(false);
+
   // Prefilled address parameters for Checkout
   const [checkoutAddress, setCheckoutAddress] = useState("");
   const [checkoutPhone, setCheckoutPhone] = useState("");
@@ -430,6 +441,113 @@ export default function App() {
   };
 
   // Admin menu CRUD operations
+  const handleSaveRestaurant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRestaurantName || !newRestaurantCuisine) {
+      showToast("Eatery Name and Cuisine are required fields.", "error");
+      return;
+    }
+
+    const payload = {
+      name: newRestaurantName,
+      cuisine: newRestaurantCuisine,
+      rating: Number(newRestaurantRating || 4.5),
+      deliveryTime: newRestaurantDeliveryTime || "25-35 min",
+      image: newRestaurantImage || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=400",
+      bannerImage: newRestaurantBannerImage || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200",
+      featured: newRestaurantFeatured
+    };
+
+    try {
+      setIsLoading(true);
+      let res;
+      if (editingRestaurantId) {
+        res = await fetch(`/api/restaurants/${editingRestaurantId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch("/api/restaurants", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const data = await res.json();
+      if (res.ok) {
+        showToast(editingRestaurantId ? "Eatery profile updated successfully!" : "Brand new eatery launched successfully!");
+        setNewRestaurantName("");
+        setNewRestaurantCuisine("");
+        setNewRestaurantRating("4.5");
+        setNewRestaurantDeliveryTime("20-30 min");
+        setNewRestaurantImage("");
+        setNewRestaurantBannerImage("");
+        setNewRestaurantFeatured(false);
+        setEditingRestaurantId(null);
+        fetchRestaurantsAndMenu(); // Refresh master list
+      } else {
+        showToast(data.error || "Operation failed", "error");
+      }
+    } catch (err) {
+      showToast("Admin Restaurant transaction error.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditRestaurantTrigger = (rest: Restaurant) => {
+    setEditingRestaurantId(rest.id);
+    setNewRestaurantName(rest.name);
+    setNewRestaurantCuisine(rest.cuisine);
+    setNewRestaurantRating(String(rest.rating || 4.5));
+    setNewRestaurantDeliveryTime(rest.deliveryTime || "25-35 min");
+    setNewRestaurantImage(rest.image || "");
+    setNewRestaurantBannerImage(rest.bannerImage || "");
+    setNewRestaurantFeatured(rest.featured || false);
+
+    // Smooth scroll back up to the form
+    const formSection = document.getElementById("restaurant-form-section");
+    if (formSection) {
+      formSection.scrollIntoView({ behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handleDeleteRestaurant = async (id: string) => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to decommission this eatery registry? Warning: This will purge all existing recipes mapped to this eatery!"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      setIsLoading(true);
+      const res = await fetch(`/api/restaurants/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Eatery decommissioned successfully.");
+        fetchRestaurantsAndMenu();
+      } else {
+        showToast(data.error || "Cannot decommission eatery", "error");
+      }
+    } catch (err) {
+      showToast("Connection to admin CRUD was interrupted.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSaveMenuItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName || !newItemPrice || !adminMenuRestaurantId) {
@@ -1471,340 +1589,610 @@ export default function App() {
         )}
 
         {/* ========================================================
-            VIEW: ADMIN DASHBOARD (Overview Statistics)
+            VIEW: UNIFIED ADMIN WORKSPACE CENTRE
             ======================================================== */}
         {currentView === "admin" && (
-          <div className="space-y-10">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline gap-4">
-              <div>
-                <h2 className="font-extrabold text-stone-900 text-2xl tracking-tight">
-                  System Administration Metrics
-                </h2>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Aggregate food chain revenue, transaction volume, and operational statuses
-                </p>
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Unified Admin Navigation Header */}
+            <div className="bg-white p-6 rounded-2xl border border-stone-200/60 card-shadow">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-stone-100">
+                <div>
+                  <h2 className="font-extrabold text-stone-900 text-2xl tracking-tight flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Central Administration Portal
+                  </h2>
+                  <p className="text-xs text-stone-500 mt-0.5 mt-1">
+                    Live telemetry database feeds, menu item adjustments, registered eateries listings & dispatch queues.
+                  </p>
+                </div>
+                
+                <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                  <button
+                    onClick={fetchDashboardStats}
+                    className="px-4 py-2 bg-stone-900 hover:bg-stone-850 text-amber-400 text-xs font-mono font-bold rounded-lg transition-all flex items-center space-x-1.5 shadow-sm"
+                  >
+                    <span>Refresh Live Feeds</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setCurrentView("admin-menu")}
-                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors flex items-center space-x-1.5"
-                >
-                  <Utensils className="w-3.5 h-3.5" />
-                  <span>Update Menu List</span>
-                </button>
-                <button
-                  onClick={fetchDashboardStats}
-                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-amber-400 text-xs font-bold rounded-lg transition-colors"
-                >
-                  Refresh Stats
-                </button>
+              {/* horizontal Tab Layout bar */}
+              <div className="flex flex-wrap gap-2 pt-4">
+                {[
+                  { id: "analytics", label: "Analytics Stats", icon: LayoutDashboard },
+                  { id: "restaurants", label: "Eateries Listings", icon: Utensils },
+                  { id: "menu", label: "Recipes & Dishes", icon: UtensilsCrossed },
+                  { id: "orders", label: "Dispatch Queue", icon: ClipboardList }
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = adminActiveTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setAdminActiveTab(tab.id as any)}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        isActive 
+                          ? "bg-stone-900 text-stone-100 shadow-md transform scale-[1.02]"
+                          : "bg-stone-50 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Dashboard Graphs Component */}
-            {dashboardStats ? (
-              <DashboardCharts stats={dashboardStats} />
-            ) : (
-              <div className="py-12 bg-white card-shadow rounded-xl text-center text-xs font-mono text-stone-400">
-                Generating live analytics vectors...
-              </div>
-            )}
-
-            {/* Interactive Orders List Manager */}
-            <div className="bg-white rounded-xl border border-stone-200/60 card-shadow overflow-hidden">
-              <div className="p-6 border-b border-stone-100">
-                <h3 className="font-bold text-stone-900 text-base">
-                  Active Dispatch & Order Operations
-                </h3>
-                <p className="text-xs text-stone-400 mt-0.5">
-                  Click status options to communicate live route updates directly to customer tracker portals
-                </p>
-              </div>
-
-              <div className="divide-y divide-stone-100">
-                {orders.length > 0 ? (
-                  orders.map((order) => (
-                    <div key={order.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs font-mono font-bold text-stone-900 bg-stone-150 px-2 py-0.5 rounded">
-                            {order.id}
-                          </span>
-                          <span className="text-xs font-semibold text-stone-800">{order.userName}</span>
-                          <span className="text-xs text-stone-400 font-mono">
-                            • {new Date(order.createdAt).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        
-                        <div className="text-xs font-mono text-stone-600">
-                          <span className="font-bold block text-stone-800 mb-1">{order.restaurantName}</span>
-                          <div className="space-y-0.5 pl-2 border-l border-stone-200">
-                            {order.items.map((i, idx) => (
-                              <div key={idx}>
-                                {i.name} <span className="text-stone-400">x{i.quantity}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-stone-500 font-mono pt-1">
-                          📍 {order.deliveryAddress} <br />
-                          📞 {order.phone}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full md:w-auto shrink-0 justify-end">
-                        <div className="text-right">
-                          <span className="text-xs text-stone-400">Total Receipt</span>
-                          <div className="text-base font-bold text-stone-900 font-mono">
-                            ${order.totalAmount.toFixed(2)}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          {/* Choose and update order statuses in real-time */}
-                          <select
-                            value={order.status}
-                            onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as Order["status"])}
-                            className="bg-stone-50 border border-stone-200 text-stone-800 text-xs py-1.5 px-2.5 rounded-lg focus:border-stone-900 outline-none w-full sm:w-auto"
-                          >
-                            <option value="Placed">Placed</option>
-                            <option value="Preparing">Preparing</option>
-                            <option value="Out for Delivery">Out for Delivery</option>
-                            <option value="Delivered">Delivered</option>
-                          </select>
-
-                          <button
-                            onClick={() => setTimelineOrder(order)}
-                            id={`view-timeline-${order.id}`}
-                            className="p-1.5 border border-stone-200 hover:border-stone-500 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-950 rounded-lg shrink-0 flex items-center justify-center transition-all"
-                            title="View Full Milestone Timeline Logs"
-                          >
-                            <Clock className="w-3.5 h-3.5" />
-                          </button>
-
-                          {order.status === "Delivered" && (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-                  ))
+            {/* Sub-Tab 1: Analytics Analytics */}
+            {adminActiveTab === "analytics" && (
+              <div className="space-y-6">
+                {dashboardStats ? (
+                  <DashboardCharts stats={dashboardStats} />
                 ) : (
-                  <div className="py-12 text-center text-xs font-mono text-stone-400">
-                    No active transaction records on file.
+                  <div className="py-24 bg-white border border-stone-100/85 rounded-2xl text-center text-xs font-mono text-stone-400 flex flex-col items-center justify-center gap-2 card-shadow">
+                    <span className="w-8 h-8 rounded-full border-2 border-stone-200 border-t-stone-900 animate-spin"></span>
+                    <span>Generating live analytics vectors...</span>
                   </div>
                 )}
               </div>
-            </div>
+            )}
 
-          </div>
-        )}
-
-        {/* ========================================================
-            VIEW: ADMIN MENU CRUD MANAGER
-            ======================================================== */}
-        {currentView === "admin-menu" && (
-          <div className="space-y-8">
-            <div className="flex justify-between items-baseline">
-              <div>
-                <h2 className="font-extrabold text-stone-900 text-2xl tracking-tight">
-                  Kitchen Menu Item Manager
-                </h2>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Update database records, assign product pricing, create new recipes
-                </p>
-              </div>
-
-              <button
-                onClick={() => setCurrentView("admin")}
-                className="text-xs font-semibold text-stone-600 hover:text-stone-900 uppercase tracking-wider"
-              >
-                Back to Dashboard
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              
-              {/* Form card - Left */}
-              <div className="lg:col-span-4 bg-white p-6 rounded-xl border border-stone-200/60 card-shadow">
-                <div className="mb-4">
-                  <h3 className="font-bold text-stone-900 text-sm tracking-tight">
-                    {editingItemId ? "Modify Premium Recipe" : "Introduce New Culinary Recipe"}
-                  </h3>
-                  <p className="text-xs text-stone-400 mt-0.5">Fill details of dishes to render on customer browse view</p>
-                </div>
-
-                <form onSubmit={handleSaveMenuItem} className="space-y-4 pt-4 border-t border-stone-100">
+            {/* Sub-Tab 2: Restaurant CRUD Management */}
+            {adminActiveTab === "restaurants" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Save Form - Left */}
+                <div id="restaurant-form-section" className="lg:col-span-4 bg-white p-6 rounded-2xl border border-stone-200/60 card-shadow space-y-4">
                   <div>
-                    <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
-                      Assigned Eatery Outlet
-                    </label>
-                    <select
-                      value={adminMenuRestaurantId}
-                      onChange={(e) => setAdminMenuRestaurantId(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 rounded-md focus:border-stone-900 focus:bg-white outline-none"
-                    >
-                      {restaurants.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
-                    </select>
+                    <h3 className="font-bold text-stone-900 text-sm tracking-tight">
+                      {editingRestaurantId ? "Modify Eatery Registry" : "Launch Brand New Eatery"}
+                    </h3>
+                    <p className="text-xs text-stone-400 mt-0.5">Define metadata profiles, locations, and images for new restaurants.</p>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
-                      Dish Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
-                      placeholder="E.g. Truffle Infused Tagliatelle"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
+                  <form onSubmit={handleSaveRestaurant} className="space-y-4 pt-4 border-t border-stone-100">
                     <div>
                       <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
-                        Price ($) *
+                        Eatery Name *
                       </label>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
                         required
-                        value={newItemPrice}
-                        onChange={(e) => setNewItemPrice(e.target.value)}
+                        value={newRestaurantName}
+                        onChange={(e) => setNewRestaurantName(e.target.value)}
                         className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
-                        placeholder="16.50"
+                        placeholder="E.g. Chef's Table Grill"
                       />
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
-                        Dietary Category
+                        Cuisine Category Tags *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newRestaurantCuisine}
+                        onChange={(e) => setNewRestaurantCuisine(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                        placeholder="E.g. Continental, French Bistro, Steaks"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                          Rating (1-5) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="1"
+                          max="5"
+                          required
+                          value={newRestaurantRating}
+                          onChange={(e) => setNewRestaurantRating(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                          placeholder="4.5"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                          Delivery Speed *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newRestaurantDeliveryTime}
+                          onChange={(e) => setNewRestaurantDeliveryTime(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                          placeholder="25-35 min"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Eatery Photo (Direct Link URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={newRestaurantImage}
+                        onChange={(e) => setNewRestaurantImage(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                        placeholder="https://images.unsplash.com/..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Eatery Hero Banner (Direct Link URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={newRestaurantBannerImage}
+                        onChange={(e) => setNewRestaurantBannerImage(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                        placeholder="https://images.unsplash.com/..."
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between py-2 border-y border-stone-100">
+                      <span className="text-xs font-semibold text-stone-700 font-sans">Feature on Customer Landing Feed?</span>
+                      <input
+                        type="checkbox"
+                        checked={newRestaurantFeatured}
+                        onChange={(e) => setNewRestaurantFeatured(e.target.checked)}
+                        className="accent-stone-900 w-4 h-4 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex gap-2">
+                      {editingRestaurantId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRestaurantId(null);
+                            setNewRestaurantName("");
+                            setNewRestaurantCuisine("");
+                            setNewRestaurantRating("4.5");
+                            setNewRestaurantDeliveryTime("20-30 min");
+                            setNewRestaurantImage("");
+                            setNewRestaurantBannerImage("");
+                            setNewRestaurantFeatured(false);
+                          }}
+                          className="w-1/3 py-2 border border-stone-200 text-stone-500 hover:text-stone-900 text-xs font-semibold rounded-lg"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        className="flex-grow py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-mono font-bold uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                      >
+                        {editingRestaurantId ? "Save Eatery profile" : "Launch Eatery listing"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Eateries Table List - Right */}
+                <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-stone-200/60 card-shadow space-y-6">
+                  <div>
+                    <h3 className="font-bold text-stone-900 text-sm tracking-tight">Active Registered Eateries</h3>
+                    <p className="text-xs text-stone-400 mt-0.5 font-sans">Toggle and modify coordinates or retire entries from customer index directories.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-1">
+                    {restaurants.map((resItem) => {
+                      return (
+                        <div key={resItem.id} className="border border-stone-200 rounded-xl overflow-hidden shadow-sm flex flex-col justify-between">
+                          <div className="relative h-24 bg-stone-100">
+                            <img
+                              src={resItem.image}
+                              alt={resItem.name}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
+                            />
+                            {resItem.featured && (
+                              <span className="absolute top-2 right-2 bg-amber-400 text-stone-900 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase">
+                                Featured
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="p-4 space-y-2">
+                            <div>
+                              <h4 className="font-bold text-stone-900 text-sm truncate">{resItem.name}</h4>
+                              <p className="text-[10px] text-stone-500 mt-0.5 truncate">{resItem.cuisine}</p>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] font-mono text-stone-700 py-1 border-t border-stone-100 font-sans">
+                              <span className="flex items-center gap-0.5 font-sans font-semibold">
+                                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                {resItem.rating}
+                              </span>
+                              <span>⏱️ {resItem.deliveryTime}</span>
+                            </div>
+
+                            <div className="pt-2 border-t border-stone-100 flex justify-end gap-3 text-xs">
+                              <button
+                                onClick={() => handleEditRestaurantTrigger(resItem)}
+                                className="text-stone-600 hover:text-stone-900 font-bold cursor-pointer"
+                              >
+                                Edit Profile
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRestaurant(resItem.id)}
+                                className="text-red-500 hover:text-red-700 font-bold cursor-pointer"
+                              >
+                                Decommission
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-Tab 3: Kitchen Menu Catalog Manager */}
+            {adminActiveTab === "menu" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Form card - Left */}
+                <div id="recipe-form-section" className="lg:col-span-4 bg-white p-6 rounded-2xl border border-stone-200/60 card-shadow space-y-4">
+                  <div>
+                    <h3 className="font-bold text-stone-900 text-sm tracking-tight">
+                      {editingItemId ? "Modify Premium Recipe" : "Introduce New Culinary Recipe"}
+                    </h3>
+                    <p className="text-xs text-stone-400 mt-0.5 font-sans">Define descriptions, options, and categories matching customer tastes.</p>
+                  </div>
+
+                  <form onSubmit={handleSaveMenuItem} className="space-y-4 pt-4 border-t border-stone-100">
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Assigned Eatery Outlet
                       </label>
                       <select
-                        value={newItemCategory}
-                        onChange={(e) => setNewItemCategory(e.target.value as MenuItem["category"])}
-                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                        value={adminMenuRestaurantId || (restaurants[0]?.id || "")}
+                        onChange={(e) => setAdminMenuRestaurantId(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 rounded-md focus:border-stone-900 focus:bg-white outline-none"
                       >
-                        <option value="Veg">Veg</option>
-                        <option value="Non-Veg">Non-Veg</option>
-                        <option value="Fast Food">Fast Food</option>
-                        <option value="Desserts">Desserts</option>
-                        <option value="Beverages">Beverages</option>
+                        <option value="">-- Choose eatery --</option>
+                        {restaurants.map(r => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Dish Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newItemName}
+                        onChange={(e) => setNewItemName(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                        placeholder="E.g. Truffle Infused Tagliatelle"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                          Price ($) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          value={newItemPrice}
+                          onChange={(e) => setNewItemPrice(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                          placeholder="16.50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                          Dietary Category
+                        </label>
+                        <select
+                          value={newItemCategory}
+                          onChange={(e) => setNewItemCategory(e.target.value as MenuItem["category"])}
+                          className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                        >
+                          <option value="Veg">Veg</option>
+                          <option value="Non-Veg">Non-Veg</option>
+                          <option value="Fast Food">Fast Food</option>
+                          <option value="Desserts">Desserts</option>
+                          <option value="Beverages">Beverages</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Visual Photo Link (Unsplash URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={newItemImageUrl}
+                        onChange={(e) => setNewItemImageUrl(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
+                        placeholder="Paste image link..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Dish Descriptions / Ingredients
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={newItemDesc}
+                        onChange={(e) => setNewItemDesc(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none resize-none"
+                        placeholder="Brief culinary ingredients highlights..."
+                      />
+                    </div>
+
+                    <div className="pt-2 flex space-x-2">
+                      {editingItemId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingItemId(null);
+                            setNewItemName("");
+                            setNewItemPrice("");
+                            setNewItemDesc("");
+                            setNewItemImageUrl("");
+                          }}
+                          className="w-1/3 py-2 border border-stone-200 text-stone-500 hover:text-stone-900 text-xs font-semibold rounded-lg cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        className="flex-grow py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-mono font-bold uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                      >
+                        {editingItemId ? "Save Dish Update" : "Launch Recipe Dish"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Master Menu List - Right */}
+                <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-stone-200/60 card-shadow space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline gap-4">
+                    <div>
+                      <h3 className="font-bold text-stone-900 text-sm tracking-tight">Active Unified Menu Database List</h3>
+                      <p className="text-xs text-stone-400 mt-0.5">Aggregate catalog displays of recipes active across customer portals</p>
+                    </div>
+                    
+                    {/* Tiny search filter to make the recipe dashboard incredibly interactive */}
+                    <div className="relative w-full sm:w-60">
+                      <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-stone-400" />
+                      <input
+                        type="text"
+                        placeholder="Filter recipe catalog..."
+                        id="recipe-catalog-search"
+                        className="pl-8 pr-3 py-1.5 bg-stone-100 border-0 rounded-lg text-xs w-full focus:bg-white focus:outline-none focus:ring-1 focus:ring-stone-900 font-sans"
+                        onChange={(e) => {
+                          const val = e.target.value.toLowerCase();
+                          const rows = document.querySelectorAll(".menu-catalog-row");
+                          rows.forEach((row: any) => {
+                            const nameText = row.querySelector(".menu-catalog-name")?.textContent?.toLowerCase() || "";
+                            if (nameText.includes(val)) {
+                              row.style.display = "flex";
+                            } else {
+                              row.style.display = "none";
+                            }
+                          });
+                        }}
+                      />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
-                      Visual Photo Link (Unsplash URL)
-                    </label>
-                    <input
-                      type="url"
-                      value={newItemImageUrl}
-                      onChange={(e) => setNewItemImageUrl(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none"
-                      placeholder="Paste image link..."
-                    />
-                  </div>
+                  <div className="divide-y divide-stone-100 max-h-[600px] overflow-y-auto pr-2">
+                    {menuItems.map((item) => {
+                      const restaurant = restaurantDetailsHashMap[item.restaurantId];
+                      return (
+                        <div key={item.id} className="py-4 flex items-center justify-between gap-4 menu-catalog-row animate-in fade-in">
+                          <div className="flex items-center space-x-3">
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              referrerPolicy="no-referrer"
+                              className="w-12 h-12 rounded-lg object-cover"
+                            />
+                            <div>
+                              <span className="font-semibold text-stone-800 text-sm block menu-catalog-name">{item.name}</span>
+                              <span className="text-[10px] font-mono text-stone-400 bg-stone-100 py-0.5 px-2 rounded-md">
+                                {restaurant ? restaurant.name : "N/A Restaurant"} • {item.category}
+                              </span>
+                            </div>
+                          </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-1">
-                      Dish Descriptions / Ingredients
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={newItemDesc}
-                      onChange={(e) => setNewItemDesc(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-stone-50 border border-stone-200 focus:border-stone-900 focus:bg-white rounded-md outline-none resize-none"
-                      placeholder="Brief culinary ingredients highlights..."
-                    />
-                  </div>
+                          <div className="flex items-center space-x-4">
+                            <span className="text-xs font-mono font-bold text-stone-900">
+                              ${item.price.toFixed(2)}
+                            </span>
 
-                  <div className="pt-2 flex space-x-2">
-                    {editingItemId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingItemId(null);
-                          setNewItemName("");
-                          setNewItemPrice("");
-                          setNewItemDesc("");
-                          setNewItemImageUrl("");
-                        }}
-                        className="w-1/3 py-2 border border-stone-200 text-stone-500 hover:text-stone-900 text-xs font-semibold rounded-lg"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    <button
-                      type="submit"
-                      className="flex-grow py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-mono font-bold uppercase tracking-wider rounded-lg transition-colors"
-                    >
-                      {editingItemId ? "Save Dish Update" : "Launch Recipe Dish"}
-                    </button>
+                            <button
+                              onClick={() => {
+                                handleEditItemTrigger(item);
+                                // Smooth scroll back up to recipe form
+                                const recipeSection = document.getElementById("recipe-form-section");
+                                if (recipeSection) {
+                                  recipeSection.scrollIntoView({ behavior: "smooth" });
+                                }
+                              }}
+                              className="text-stone-500 hover:text-stone-900 text-xs font-semibold cursor-pointer"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteItem(item.id)}
+                              className="text-stone-300 hover:text-red-600 p-1 rounded cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </form>
+                </div>
               </div>
+            )}
 
-              {/* Master Menu List - Right */}
-              <div className="lg:col-span-8 bg-white p-6 rounded-xl border border-stone-200/60 card-shadow space-y-6">
-                <div>
-                  <h3 className="font-bold text-stone-900 text-sm tracking-tight">Active Unified Menu Database List</h3>
-                  <p className="text-xs text-stone-400 mt-0.5">Aggregate catalog displays of recipes active across customer portals</p>
+            {/* Sub-Tab 4: Dispatch queue queue */}
+            {adminActiveTab === "orders" && (
+              <div className="bg-white rounded-2xl border border-stone-200/60 card-shadow overflow-hidden">
+                <div className="p-6 border-b border-stone-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h3 className="font-bold text-stone-900 text-base">
+                      Active Dispatch & Order Operations
+                    </h3>
+                    <p className="text-xs text-stone-400 mt-0.5 font-sans">
+                      Click status options to communicate live route updates directly to customer tracker portals.
+                    </p>
+                  </div>
+
+                  {/* Filter dispatcher queue by status */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-mono font-bold text-stone-500 uppercase tracking-wider">Queue:</span>
+                    <select
+                      id="order-queue-filter"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const ordersRows = document.querySelectorAll(".dispatch-queue-row");
+                        ordersRows.forEach((row: any) => {
+                          const status = row.getAttribute("data-status");
+                          if (!val || status === val) {
+                            row.style.display = "flex";
+                          } else {
+                            row.style.display = "none";
+                          }
+                        });
+                      }}
+                      className="bg-stone-50 border border-stone-200 text-stone-800 text-xs py-1 px-2 rounded-lg outline-none cursor-pointer focus:bg-white"
+                    >
+                      <option value="">All Orders</option>
+                      <option value="Placed">Placed</option>
+                      <option value="Preparing">Preparing</option>
+                      <option value="Out for Delivery">Out for Delivery</option>
+                      <option value="Delivered">Delivered</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div className="divide-y divide-stone-100 max-h-[600px] overflow-y-auto pr-2">
-                  {menuItems.map((item) => {
-                    const restaurant = restaurantDetailsHashMap[item.restaurantId];
-                    return (
-                      <div key={item.id} className="py-4 flex items-center justify-between gap-4">
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={item.imageUrl}
-                            alt={item.name}
-                            className="w-12 h-12 rounded-lg object-cover"
-                          />
-                          <div>
-                            <span className="font-semibold text-stone-800 text-sm block">{item.name}</span>
-                            <span className="text-[10px] font-mono text-stone-400 bg-stone-100 py-0.5 px-2 rounded-md">
-                              {restaurant ? restaurant.name : "N/A Restaurant"} • {item.category}
+                <div className="divide-y divide-stone-100">
+                  {orders.length > 0 ? (
+                    orders.map((order) => (
+                      <div key={order.id} data-status={order.status} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 dispatch-queue-row animate-in fade-in">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-mono font-bold text-stone-900 bg-stone-100 px-2 py-0.5 rounded">
+                              {order.id}
                             </span>
+                            <span className="text-xs font-semibold text-stone-800">{order.userName}</span>
+                            <span className="text-xs text-stone-400 font-mono">
+                              • {new Date(order.createdAt).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          
+                          <div className="text-xs font-mono text-stone-600">
+                            <span className="font-bold block text-stone-850 mb-1">{order.restaurantName}</span>
+                            <div className="space-y-0.5 pl-2 border-l border-stone-200">
+                              {order.items.map((i, idx) => (
+                                <div key={idx}>
+                                  {i.name} <span className="text-stone-400">x{i.quantity}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="text-xs text-stone-500 font-mono pt-1">
+                            📍 {order.deliveryAddress} <br />
+                            📞 {order.phone}
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-4">
-                          <span className="text-xs font-mono font-bold text-stone-900">
-                            ${item.price.toFixed(2)}
-                          </span>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full md:w-auto shrink-0 justify-end">
+                          <div className="text-right">
+                            <span className="text-xs text-stone-400 font-sans">Total Receipt</span>
+                            <div className="text-base font-bold text-stone-900 font-mono">
+                              ${order.totalAmount.toFixed(2)}
+                            </div>
+                          </div>
 
-                          <button
-                            onClick={() => handleEditItemTrigger(item)}
-                            className="text-stone-500 hover:text-stone-900 text-xs font-semibold"
-                          >
-                            Edit
-                          </button>
+                          <div className="flex items-center space-x-2">
+                            {/* Choose and update order statuses in real-time */}
+                            <select
+                              value={order.status}
+                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as Order["status"])}
+                              className="bg-stone-50 border border-stone-200 text-stone-800 text-xs py-1.5 px-2.5 rounded-lg focus:border-stone-900 outline-none w-full sm:w-auto cursor-pointer"
+                            >
+                              <option value="Placed">Placed</option>
+                              <option value="Preparing">Preparing</option>
+                              <option value="Out for Delivery">Out for Delivery</option>
+                              <option value="Delivered">Delivered</option>
+                            </select>
 
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="text-stone-300 hover:text-red-600 p-1 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            <button
+                              onClick={() => setTimelineOrder(order)}
+                              id={`view-timeline-${order.id}`}
+                              className="p-1.5 border border-stone-200 hover:border-stone-500 bg-white hover:bg-stone-50 text-stone-700 hover:text-stone-950 rounded-lg shrink-0 flex items-center justify-center transition-all cursor-pointer"
+                              title="View Full Milestone Timeline Logs"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                            </button>
+
+                            {order.status === "Delivered" && (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            )}
+                          </div>
                         </div>
+
                       </div>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    <div className="py-12 text-center text-xs font-mono text-stone-400">
+                      No active dispatch records on file.
+                    </div>
+                  )}
                 </div>
               </div>
-
-            </div>
+            )}
           </div>
         )}
 
